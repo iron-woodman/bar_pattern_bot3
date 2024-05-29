@@ -11,7 +11,7 @@ def load_futures_list():
         client = Client(BINANCE_API_KEY, BINANCE_Secret_KEY)
         futures_info_list = client.futures_exchange_info()
         for item in futures_info_list['symbols']:
-            if item['status'] != 'TRADING': continue
+            if item['status'] != 'TRADING' or item['contractType'] != 'PERPETUAL': continue
             if item['pair'].endswith('USDT'):
                 futures.append(item['pair'])
         print('FUTURES:', futures)

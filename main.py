@@ -5,14 +5,15 @@ from binance.enums import HistoricalKlinesType
 import json
 import datetime
 import time
+import os
 import src.logger as custom_logging
 from src.config_handler import TIMEFRAMES, BINANCE_API_KEY, BINANCE_Secret_KEY
 from send_all_signals import process_signal
 
 THREAD_CNT = 1  # 3 потока на ядро
+DAY_OPEN_PRICES = dict()
 
-
-def check_history_bars_for_pattern_3bars(pair, bars: list) -> str:
+def check_history_bars_for_pattern_3bars(pair: str, bars: list) -> str:
     """
     Поиск свечного паттерна в барах истории
     :param bars:
@@ -49,6 +50,21 @@ def check_history_bars_for_pattern_3bars(pair, bars: list) -> str:
             f'{pair}: CLOSE: {cl[2]} < {cl[1]} < {cl[0]} VOL: {vol[2]} > {vol[1]} > {vol[0]} => LONG')
         return "LONG"
     return ""
+
+
+def get_day_price_move(pair, last_hour_bar):
+    """
+    get procent of price movement from open price
+    """
+    DAY_OPEN_PRICES = load_open_prices()
+    if pair in DAY_OPEN_PRICES:
+        day_open = DAY_OPEN_PRICES[pair]
+        bar_close = float(last_hour_bar[4])
+        move = abs(day_open-bar_close) * 100 / day_open
+        return move
+    return 0
+
+
 
 
 def load_history_bars(task):
@@ -94,14 +110,19 @@ def load_history_bars(task):
                 continue
             # ------------ check for 3 different bar patterns ----------------------------------------------------------
             check_result = check_history_bars_for_pattern_3bars(pair, bars)
-            result["3bars_growing_volumes_v1"] = ""
-            result["3bars_growing_volumes_v2"] = ""
+            price_move = 0.0
+            if check_result != "":
+                #     signal exist and check for price day movement
+                price_move = get_day_price_move(pair, bars[len(bars)-1])
+            result["3bars_growing_volumes"] = check_result
+            result["price_move"] = price_move
 
-            if check_result == "SHORT":
-                result["3bars_growing_volumes_v1"] = "SHORT"
+            # # test
+            # price_move = get_day_price_move(pair, bars[len(bars) - 1])
+            # result["3bars_growing_volumes"] = "SHORT"
+            # result["price_move"] = price_move
+            # #end test
 
-            if check_result == "LONG":
-                result["3bars_growing_volumes_v2"] = "LONG"
             # ----------------------------------------------------------------------------------------------------------
         return result
     except Exception as e:
@@ -120,30 +141,42 @@ def store_signals_to_file(signals_data: dict, pattern_name: str):
 
 
 def load_futures_history_bars_end(responce_list):
-    signals_3bars_v1 = dict()
-    signals_3bars_v2 = dict()
+    signals_3bars = dict()
 
     for responce in responce_list:
         id = responce['id']
         del responce['id']
 
-        if responce['3bars_growing_volumes_v1'] != '':
-            signals_3bars_v1[id] = responce['3bars_growing_volumes_v1']
+        if responce['3bars_growing_volumes'] != '':
+            # signals_3bars[id] = responce['3bars_growing_volumes']
+            signals_3bars[id] = (responce['3bars_growing_volumes'], responce['price_move'])
 
-        if responce['3bars_growing_volumes_v2'] != '':
-            signals_3bars_v2[id] = responce['3bars_growing_volumes_v2']
 
     try:
-        store_signals_to_file(signals_3bars_v1, "3bars_growing_volumes_v1")
-        store_signals_to_file(signals_3bars_v2, "3bars_growing_volumes_v2")
+        store_signals_to_file(signals_3bars, "3bars_growing_volumes")
 
     except Exception as e:
         print("load_futures_history_bars_end exception:", e)
         custom_logging.error(f'load_futures_history_bars_end exception: {e}')
 
 
+def load_open_prices() -> dict:
+    """load open prices from json file"""
+    prices = dict()
+    for element in os.scandir('day_open_price'):
+        if element.is_file():
+            if '.txt' in element.name:
+                with open(f'day_open_price/{element.name}', 'r', encoding='utf-8') as f:
+                    prices = json.load(f)
+    return prices
+
+
 if __name__ == '__main__':
     futures_list = load_futures_list()
+
+    # if len(DAY_OPEN_PRICES) == 0:
+    #     custom_logging.error(f"Day open prices not loaded. Script closed.")
+    #     exit(1)
     print('Futures count:', len(futures_list))
     tasks = []
     try:
@@ -154,12 +187,8 @@ if __name__ == '__main__':
             pool.map_async(load_history_bars, tasks, callback=load_futures_history_bars_end)
             pool.close()
             pool.join()
-
             cur_date = datetime.date.today().isoformat()
-
-            process_signal('signals_3bars_growing_volumes_v1', cur_date)
-            time.sleep(1)
-            process_signal('signals_3bars_growing_volumes_v2', cur_date)
+            process_signal('signals_3bars_growing_volumes', cur_date)
 
     except Exception as ex:
         print("Load history bars exception:", ex)

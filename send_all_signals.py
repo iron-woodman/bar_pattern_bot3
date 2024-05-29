@@ -15,21 +15,72 @@ def read_signal_data(file):
     return signal_data
 
 
+def load_data_from_json_file(file_path):
+    """
+    Функция для чтения данных из JSON файла
+    """
+    # Попытка открыть и прочитать файл
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            # Загрузка данных из файла
+            data = json.load(file)
+            return data
+    except FileNotFoundError:
+        print(f"Файл не найден: {file_path}")
+    except json.JSONDecodeError:
+        print(f"Ошибка декодирования JSON в файле: {file_path}")
+
+
+def get_sorted_by_procent_list(signal_data: dict) -> list:
+    """
+    отсортировать значения словаря по убыванию процента изменения цены с момента открытия дневного бара
+    """
+    sorted_list = []
+    while len(signal_data) > 0:
+        signal = signal_data.popitem()
+        if len(sorted_list) == 0:
+            sorted_list.append(signal)
+        else:
+            for index, item in enumerate(sorted_list, start=0):
+                if signal[1] > item[1]:
+                    sorted_list.insert(index, signal)
+                    break
+    return sorted_list
+
+
 def process_signal(signal_folder_name, current_date):
     # signal_data = read_signal_data(f'signals/{current_date}.txt')
     signal_data = read_signal_data(f'{signal_folder_name}/{current_date}.txt')
 
     if signal_data:
         signal_str = f'*{signal_folder_name.replace("signals_", "")}*:\n\n'
-        while len(signal_data) > 0:
-            signal = signal_data.popitem()
-            signal_str += f'{signal[0]}: {signal[1]}\n'
+
+
+        signal_data = get_sorted_by_procent_list(signal_data)
+        print(signal_data)
+
+        for signal in signal_data:
+            signal_str += f'{signal[0]}: {signal[1][0]}\n'
             if len(signal_str) > 4000:  # размер сообщения близок к максимальному => отправляем
                 send_signal(signal_data, TLG_TOKEN, TLG_CHANNEL_ID)
                 signal_str = f'*{signal_folder_name.replace("signals_", "")}*:\n\n'
                 time.sleep(1)
         if len(signal_str) > 0:
             send_signal(signal_str, TLG_TOKEN, TLG_CHANNEL_ID)
+
+
+
+
+
+        # while len(signal_data) > 0:
+        #     signal = signal_data.popitem()
+        #     signal_str += f'{signal[0]}: {signal[1]}\n'
+        #     if len(signal_str) > 4000:  # размер сообщения близок к максимальному => отправляем
+        #         send_signal(signal_data, TLG_TOKEN, TLG_CHANNEL_ID)
+        #         signal_str = f'*{signal_folder_name.replace("signals_", "")}*:\n\n'
+        #         time.sleep(1)
+        # if len(signal_str) > 0:
+        #     send_signal(signal_str, TLG_TOKEN, TLG_CHANNEL_ID)
 
 
 if __name__ == "__main__":
@@ -40,7 +91,7 @@ if __name__ == "__main__":
     time.sleep(1)
     process_signal('signals_2bars_falling_volumes_v2', cur_date)
     time.sleep(1)
-    process_signal('signals_3bars_growing_volumes_v1', cur_date)
+    process_signal('signals_3bars_growing_volumes', cur_date)
     time.sleep(1)
     process_signal('signals_3bars_growing_volumes_v2', cur_date)
 
