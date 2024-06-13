@@ -60,7 +60,7 @@ def process_signal(signal_folder_name, current_date):
         print(signal_data)
 
         for signal in signal_data:
-            signal_str += f'{signal[0]}: {signal[1][0]}\n'
+            signal_str += f'{signal[0]}: {signal[1][0]} ({round(signal[1][1], 2)}%)\n'
             if len(signal_str) > 4000:  # размер сообщения близок к максимальному => отправляем
                 send_signal(signal_data, TLG_TOKEN, TLG_CHANNEL_ID)
                 signal_str = f'*{signal_folder_name.replace("signals_", "")}*:\n\n'
