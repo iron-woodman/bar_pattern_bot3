@@ -41,10 +41,16 @@ def get_sorted_by_procent_list(signal_data: dict) -> list:
         if len(sorted_list) == 0:
             sorted_list.append(signal)
         else:
+            data_inserted = False
             for index, item in enumerate(sorted_list, start=0):
-                if signal[1] > item[1]:
+                if signal[1][1] > item[1][1]:
                     sorted_list.insert(index, signal)
+                    data_inserted = True
                     break
+            if not data_inserted:
+                sorted_list.append(signal)
+
+
     return sorted_list
 
 
@@ -62,7 +68,7 @@ def process_signal(signal_folder_name, current_date):
         for signal in signal_data:
             signal_str += f'{signal[0]}: {signal[1][0]} ({round(signal[1][1], 2)}%)\n'
             if len(signal_str) > 4000:  # размер сообщения близок к максимальному => отправляем
-                send_signal(signal_data, TLG_TOKEN, TLG_CHANNEL_ID)
+                send_signal(signal_str, TLG_TOKEN, TLG_CHANNEL_ID)
                 signal_str = f'*{signal_folder_name.replace("signals_", "")}*:\n\n'
                 time.sleep(1)
         if len(signal_str) > 0:
@@ -87,13 +93,13 @@ if __name__ == "__main__":
 
     cur_date = datetime.date.today().isoformat()
 
-    process_signal('signals_2bars_falling_volumes_v1', cur_date)
-    time.sleep(1)
-    process_signal('signals_2bars_falling_volumes_v2', cur_date)
-    time.sleep(1)
+    # process_signal('signals_2bars_falling_volumes_v1', cur_date)
+    # time.sleep(1)
+    # process_signal('signals_2bars_falling_volumes_v2', cur_date)
+    # time.sleep(1)
     process_signal('signals_3bars_growing_volumes', cur_date)
     time.sleep(1)
-    process_signal('signals_3bars_growing_volumes_v2', cur_date)
+    # process_signal('signals_3bars_growing_volumes_v2', cur_date)
 
 
 
